@@ -59,6 +59,8 @@ echo "*/2 * * * * www-data /usr/bin/php /var/www/html/glpi/front/cron.php &>/dev
 #Start cron service
 service cron start
 
+sed -i 's/session.cookie_httponly =/session.cookie_httponly = on/g /etc/php/8.1/apache2/php.ini'
+
 #Activation du module rewrite d'apache
 a2enmod rewrite && service apache2 restart && service apache2 stop
 
