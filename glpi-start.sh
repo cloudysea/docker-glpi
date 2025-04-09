@@ -6,12 +6,13 @@
 
 if [[ -z "${TIMEZONE}" ]]; then echo "TIMEZONE is unset"; 
 else 
-echo "date.timezone = \"$TIMEZONE\"" > /etc/php/8.1/apache2/conf.d/timezone.ini;
-echo "date.timezone = \"$TIMEZONE\"" > /etc/php/8.1/cli/conf.d/timezone.ini;
+echo "date.timezone = \"$TIMEZONE\"" > /etc/php/8.3/apache2/conf.d/timezone.ini;
+echo "date.timezone = \"$TIMEZONE\"" > /etc/php/8.3/cli/conf.d/timezone.ini;
 fi
 
-SRC_GLPI=$(curl -s https://api.github.com/repos/glpi-project/glpi/releases/tags/${VERSION_GLPI} | jq .assets[0].browser_download_url | tr -d \")
-TAR_GLPI=$(basename ${SRC_GLPI})
+#Enable session.cookie_httponly
+sed -i 's,session.cookie_httponly = *\(on\|off\|true\|false\|0\|1\)\?,session.cookie_httponly = on,gi' /etc/php/8.3/apache2/php.ini
+
 FOLDER_GLPI=glpi/
 FOLDER_WEB=/var/www/html/
 
@@ -23,10 +24,13 @@ then
 fi
 
 #Téléchargement et extraction des sources de GLPI
-if [ "$(ls ${FOLDER_WEB}${FOLDER_GLPI})" ];
+if [ "$(ls ${FOLDER_WEB}${FOLDER_GLPI}/bin)" ];
 then
 	echo "GLPI is already installed"
 else
+	SRC_GLPI=$(curl -s https://api.github.com/repos/glpi-project/glpi/releases/tags/${VERSION_GLPI} | jq .assets[0].browser_download_url | tr -d \")
+	TAR_GLPI=$(basename ${SRC_GLPI})
+
 	wget -P ${FOLDER_WEB} ${SRC_GLPI}
 	tar -xzf ${FOLDER_WEB}${TAR_GLPI} -C ${FOLDER_WEB}
 	rm -Rf ${FOLDER_WEB}${TAR_GLPI}
@@ -55,7 +59,7 @@ else
 fi
 
 #Add scheduled task by cron and enable
-echo "*/2 * * * * www-data /usr/bin/php /var/www/html/glpi/front/cron.php &>/dev/null" >> /etc/cron.d/glpi
+echo "*/2 * * * * www-data /usr/bin/php /var/www/html/glpi/front/cron.php &>/dev/null" > /etc/cron.d/glpi
 #Start cron service
 service cron start
 
@@ -63,6 +67,9 @@ sed -i 's/session.cookie_httponly =/session.cookie_httponly = on/g /etc/php/8.1/
 
 #Activation du module rewrite d'apache
 a2enmod rewrite && service apache2 restart && service apache2 stop
+
+#Fix to really stop apache
+pkill -9 apache
 
 #Lancement du service apache au premier plan
 /usr/sbin/apache2ctl -D FOREGROUND
